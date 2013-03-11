@@ -1,0 +1,162 @@
+=============================================================================================
+
+--This project uses SQL commands to view and modify data on purchases and products
+
+=============================================================================================
+
+> mysql -u myuser -p -t < d:\myprojects\sqlprojects\productscript.sql 
+Enter password: ********
+
+-- Show hex value of chinese characters
+mysql> SELECT HEX('您好');
++-------------+ 
+| HEX('您好') | 
++-------------+ 
+| C4FABAC3    | 
++-------------+
+
+-- Define a user variable
+mysql> SET @today = CURDATE(); 
+
+mysql> select now(), curdate(), curtime(); 
++---------------------+------------+-----------+ 
+| now()               | curdate()  | curtime() | 
++---------------------+------------+-----------+ 
+| 2013-03-08 16:28:06 | 2013-03-08 | 16:28:06  | 
++---------------------+------------+-----------+
+
+-- Create a table with ENUM columns
+CREATE TABLE IF NOT EXISTS `purchases` (    
+  `desc`            	VARCHAR(50) NULL,    
+	`brand`           	ENUM('abc', 'xyz', 'lol') NOT NULL DEFAULT 'lol',    
+	`size`         	    ENUM('S', 'M', 'L', 'XL', 'XXL') NOT NULL,    
+	`customerRating`  	ENUM('5', '4', '3', '2', '1') DEFAULT NULL 
+);    
+
+DESCRIBE `purchases`; 
++----------------+------------------------------+------+-----+---------+-------+ 
+| Field          | Type                         | Null | Key | Default | Extra | 
++----------------+------------------------------+------+-----+---------+-------+ 
+| desc           | varchar(50)                  | YES  |     | NULL    |       | 
+| brand          | enum('abc','xyz','lol')      | NO   |     | lol     |       | 
+| size           | enum('S','M','L','XL','XXL') | NO   |     | NULL    |       | 
+| customerRating | enum('5','4','3','2','1')    | YES  |     | NULL    |       | 
++----------------+------------------------------+------+-----+---------+-------+
+
+INSERT INTO `purchases`
+	(`description`, `brand`, `size`) 
+VALUES    
+	('Men’s Jeans', 'abc', 'm'),    
+	('Women’s Dress', 'XYZ', 'M'),    
+  ('Kid’s Sweater', 'lol', 'unknown');     
+
+UPDATE `purchases` 
+SET customerRating='3';     
+
+SELECT * FROM `purchases`; 
++-----------------+-------+------+----------------+ 
+| description     | brand | size | customerRating | 
++-----------------+-------+------+----------------+ 
+| Men’s Jeans     | abc   | M    | 3              | 
+| Women’s Dress   | xyz   | M    | 3              | 
+| Kid’s Sweater   | lol   |      | 3              | 
++-----------------+-------+------+----------------+
+
+INSERT INTO `purchases` VALUES    
+	('Women’s Blouse', 'lol', 2, 1);     
+
+SELECT * FROM `purchases` WHERE `description`='Women’s Blouse'; 
++-------------------+-------+------+----------------+ 
+| description       | brand | size | customerRating | 
++-------------------+-------+------+----------------+ 
+| Women’s Blouse    | lol   | M    | 5              | 
++-------------------+-------+------+----------------+
+
+SELECT * FROM Shirts WHERE brand=0 OR size=0 OR customerRating=0; 
++-------+------+----------------+ 
+| brand | size | customerRating | 
++-------+------+----------------+ 
+| lol   |      | 3              | 
++-------+------+----------------+
+
+SELECT column_type FROM information_schema.columns 
+WHERE table_schema='test' AND table_name='purchases' AND column_name='brand'; 
++-------------------------+ 
+| column_type             | 
++-------------------------+ 
+| enum('abc','xyz','lol') | 
++-------------------------+
+
+-- Use this table for testing stored procedure 
+CREATE TABLE IF NOT EXISTS products (    
+	productID    INT UNSIGNED  NOT NULL AUTO_INCREMENT,    
+	productCode  CHAR(3)       NOT NULL DEFAULT '',    
+	name         VARCHAR(30)   NOT NULL DEFAULT '',    
+	quantity     INT UNSIGNED  NOT NULL DEFAULT 0,    
+	price        DECIMAL(5,2)  NOT NULL DEFAULT 999.99,    
+	PRIMARY KEY  (productID) 
+);   
+
+INSERT INTO products VALUES     
+	(1001,  'SNEAKER', 	'Sneaker Red',    5000,   12.23),    
+	(1002,  'SNEAKER', 	'Sneaker Blue',   8000, 	14.25),    
+	(1003,  'SNEAKER', 	'Sneaker Black',  2000, 	19.25),    
+	(1004,  'SANDAL', 	'Sandal S', 	    1000, 	10.48),    
+	(1005,  'SANDAL',	  'Sandal L', 	    8000, 	9.49);  
+SELECT * FROM `products`;  
+
+-- Find the products with `quantity` less than the given `reorderLevel`, 
+-- and return the total cost to replenish in `cost` 
+-- The parameters could be declared as IN, OUT or INOUT 
+CREATE PROCEDURE reorderCost (IN reorderLevel INT, OUT cost DECIMAL(6,2)) 
+BEGIN   
+	SELECT IFNULL(sum(price*(reorderLevel-quantity)), 0) INTO cost   
+	FROM products   
+	WHERE quantity < reorderLevel; 
+END//  
+
+DELIMITER ;     
+-- restore the default delimiter ';'
+
+-- Create a VIEW which shows only selected columns 
+DROP VIEW IF EXISTS products_view;  
+
+CREATE VIEW products_view (Name, Price) 
+AS 
+SELECT CONCAT(productCode, ' - ', name), price FROM products;  
+
+DESCRIBE products_view;     
+
+SELECT * FROM products_view; 
++-------------------------+-------+ 
+| Name                    | Price | 
++-------------------------+-------+ 
+| SNEAKER - Sneaker Red   | 12.23 |   
+ ......   
+
+-- Create another VIEW with a derived column 
+DROP VIEW IF EXISTS products_total_view;   
+
+CREATE VIEW products_total_view 
+AS 
+SELECT    
+	CONCAT(productCode, ' - ', name) AS Name,    
+	quantity AS Quantity,    
+	price AS Price,    
+	quantity*price AS Total 
+FROM products;   
+
+SELECT * FROM products_total_view; 
++-------------------------+----------+--------+----------+ 
+| Name                    | Quantity | Price  | Total    | 
++-------------------------+----------+--------+----------+ 
+| SNEAKER - Sneaker Red   |      500 |  12.23 |  6115.00 | 
+| SNEAKER - Sneaker Blue  |      800 |  14.25 | 11400.00 |
+ ......  
+
+mysql> SELECT * FROM products WHERE productCode LIKE 'DEF%'; 
++-------------+-----------+--------------+-----------+--------------+ 
+| productCode | name      | description  | unitPrice | unitsInStock | 
++-------------+-----------+--------------+-----------+--------------+ 
+| DEF-0001    | Sandal S  | Small Sandal |     10.48 |         2000 | 
++-------------+-----------+--------------+-----------+--------------+    
